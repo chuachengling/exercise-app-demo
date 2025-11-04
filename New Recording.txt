@@ -1,0 +1,38 @@
+
+So what's the app and idea we'd like to build? We can build a health diary where users can access features like recording down their exercise, and recording down the food that they intake, and the amount of water that they drink every day. And the website can also have a page whereby it suggests ideas for users to create healthy food. So like, recipes.
+
+Okay. Maybe they will also have exercise sets. So for example, a HIIT exercise set, then you have a different bunch of exercises, there may be a weightlifting, or like an arms-focused exercise set that they can include.
+
+But who would be using this kind of application? Would it be people trying to lose weight, or trying to gain muscle, or prepare for competitions, things like that? Who would be the persona? Both people who want to lose weight or gain muscle, or just anyone who wants to track. Yeah, health in general. It doesn't have to be fitness enthusiasts.
+
+Okay. Maybe when they sign up, they can choose what is their goal. Okay.
+
+So this needs to be a next-gen application, right? So it won't be a problem in the future. Found someone. Interested.
+
+Picked up someone. So probably on signing up, they will need to choose a particular persona that they have, either to lose weight, or to train for a competition, or what's their end goal in life. So how would the user experience be like? You mean the entire floor, or during lock-in? Yeah, probably.
+
+So during sign-up, what does it look like? You ask the user a series of questions, and they set their goals. Okay. Afterwards, it will be your homepage, where you have different pages for different exercises.
+
+Okay, so different exercises, different food. Yeah, the homepage can have a dashboard to show what has been tracked over the past X number of days or months, according to what the user wants to choose. Then there's the different pages that they can navigate to, to zoom into each of the different features that you mentioned before.
+
+Okay. So is it an app that users use during their workout, or after their workout? They can use it during, or the feature whereby it brings them to the HIIT exercises, or like building muscle. But they can use it after the track also, like what they've done.
+
+Yeah, it's like a diary. Yeah, it's a diary. Any technical considerations, for example? Oh, yeah, yes.
+
+Right, so then we, for anything user enters, we want to store into a local database, right? So the app needs to be able to record into a local database for this. And for the suggestions on food to cook, it needs to invoke natural language AI, so CGPT and the likes, to send the questions to them to get suggested recipes back. And also for the exercise.
+
+Yeah, that's possible. Do you want the exercise to be generated in real time, or pre-recorded? I think we can do both. So what we can have is like an initial catalogue of exercises that are already generated, and then use AI or CGPT to generate on the fly if they have a particular text description that they have.
+
+For example, let's say they want to have a 30-minute exercise, with the first 15 minutes be more focused on strength, and then the next 15 minutes be more focused on heat. Something like that. So it allows users that flexibility to use the app.
+
+That's possible. In terms of storage, maybe we can use SQLite for local usage. I think initially that's quite simple.
+
+It's a MVP. Dependencies or risk? I don't know. I don't think so.
+
+Yeah, I don't think so. It depends on anything. We depend on the AI.
+
+So we need to have the AI portion. So we need an API key. Yeah, so that's one thing we have to deal with later.
+
+Or we can just use LLAMA. What you can do is you have a LLAMA endpoint locally, and then we just use that. I think that would be quite simple already.
+
+Alright, anything else? We are done. Alright, let's try it.
