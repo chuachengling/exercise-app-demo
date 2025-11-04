@@ -2,7 +2,6 @@
 
 import { HealthGoal, HealthGoalId } from '@/lib/types/healthGoals';
 import { getHealthGoalIcon } from '@/constants/healthGoals';
-import { Check } from 'lucide-react';
 
 interface HealthGoalCardProps {
   goal: HealthGoal;
@@ -36,55 +35,73 @@ export default function HealthGoalCard({
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={`
-        relative p-6 bg-white dark:bg-gray-800 border rounded-xl cursor-pointer
-        transition-all duration-150 ease-in-out min-h-[160px] lg:min-h-[160px] md:min-h-[140px] sm:min-h-[120px]
-        hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-        ${isSelected 
-          ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20 border-blue-500' 
-          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+        group relative p-6 bg-white dark:bg-gray-800 rounded-2xl cursor-pointer
+        transition-all duration-200 ease-in-out min-h-[200px] shadow-sm
+        hover:shadow-lg hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+        border-2 ${isSelected 
+          ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20' 
+          : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600'
         }
         ${className}
       `}
       aria-describedby={`${goal.id}-description`}
     >
       {/* Selection indicator */}
-      {isSelected && (
-        <div className="absolute top-4 right-4">
-          <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-            <Check className="w-4 h-4 text-white" aria-hidden="true" />
-          </div>
+      <div className={`absolute top-4 right-4 transition-all duration-200 ${
+        isSelected ? 'scale-100 opacity-100' : 'scale-0 opacity-0'
+      }`}>
+        <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center shadow-md">
+          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
         </div>
-      )}
+      </div>
 
-      {/* Goal icon */}
-      <div className="flex items-center space-y-3 flex-col">
-        <div className="text-4xl mb-2" aria-hidden="true">
+      {/* Content */}
+      <div className="flex flex-col items-center text-center h-full justify-between">
+        {/* Icon */}
+        <div className={`text-5xl mb-4 transition-transform duration-200 group-hover:scale-110 ${
+          isSelected ? 'scale-110' : ''
+        }`}>
           {getHealthGoalIcon(goal.icon)}
         </div>
 
-        {/* Goal title */}
-        <h3 className="font-inter text-lg lg:text-lg md:text-base font-semibold text-gray-900 dark:text-white text-center">
-          {goal.title}
-        </h3>
+        <div className="flex-1 flex flex-col justify-center">
+          {/* Title */}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+            {goal.title}
+          </h3>
 
-        {/* Goal description */}
-        <p 
-          id={`${goal.id}-description`}
-          className="font-inter text-sm text-gray-600 dark:text-gray-300 text-center leading-relaxed"
-        >
-          {goal.description}
-        </p>
+          {/* Description */}
+          <p 
+            id={`${goal.id}-description`}
+            className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-4 line-clamp-3"
+          >
+            {goal.description}
+          </p>
 
-        {/* Benefits */}
-        <div className="mt-3">
-          <ul className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+          {/* Benefits */}
+          <div className="space-y-2">
             {goal.benefits.slice(0, 2).map((benefit, index) => (
-              <li key={index} className="flex items-center text-center justify-center">
-                <span className="w-1 h-1 bg-blue-500 rounded-full mr-2" aria-hidden="true" />
-                {benefit}
-              </li>
+              <div key={index} className="flex items-center justify-center text-xs text-gray-500 dark:text-gray-400">
+                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 flex-shrink-0" />
+                <span className="text-center">{benefit}</span>
+              </div>
             ))}
-          </ul>
+          </div>
+        </div>
+
+        {/* Selection button */}
+        <div className={`mt-4 w-full transition-all duration-200 ${
+          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}>
+          <div className={`px-4 py-2 rounded-lg text-sm font-medium text-center ${
+            isSelected 
+              ? 'bg-blue-600 text-white shadow-md' 
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+          }`}>
+            {isSelected ? 'Selected' : 'Select Goal'}
+          </div>
         </div>
       </div>
     </div>

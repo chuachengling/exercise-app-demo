@@ -1,5 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { Navigation } from '@/components/Navigation';
+import { AuthProvider } from '@/lib/contexts/AuthContext';
 
 export const metadata: Metadata = {
   title: 'Exercise App - Your Health Journey Starts Here',
@@ -14,7 +16,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground antialiased">
-        {children}
+        <AuthProvider>
+          <Navigation />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

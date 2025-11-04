@@ -3,7 +3,6 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { HealthGoalId } from '@/lib/types/healthGoals';
-import { saveUserGoalPreference } from '@/lib/database/userGoals';
 
 interface UseHealthGoalFormReturn {
   selectedGoal: HealthGoalId | null;
@@ -48,19 +47,43 @@ export default function useHealthGoalForm(): UseHealthGoalFormReturn {
       // In a real app, this would come from authentication context
       const mockUserId = 'demo-user-' + Date.now();
       
-      // Save to local database
-      await saveUserGoalPreference(mockUserId, {
-        goalId: selectedGoal!,
-        selectedAt: new Date(),
-        isActive: true
+      console.log('🚀 Submitting goal selection:', { 
+        userId: mockUserId, 
+        goalId: selectedGoal,
+        selectedAt: new Date().toISOString()
       });
+      
+      // Save via API route
+      const response = await fetch('/api/user/goals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: mockUserId,
+          goalId: selectedGoal!,
+          selectedAt: new Date().toISOString(),
+          isActive: true
+        }),
+      });
+
+      console.log('📡 API Response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ API Error response:', errorData);
+        throw new Error(errorData.error || 'Failed to save goal preference');
+      }
+
+      const successData = await response.json();
+      console.log('✅ Goal saved successfully:', successData);
 
       // Navigate to next step
       router.push('/signup/profile-setup');
     } catch (error) {
-      console.error('Error saving goal selection:', error);
+      console.error('❌ Error saving goal selection:', error);
       setErrors({ 
-        submit: 'Failed to save your goal selection. Please try again.' 
+        submit: `Failed to save your goal selection: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.` 
       });
     } finally {
       setIsSubmitting(false);

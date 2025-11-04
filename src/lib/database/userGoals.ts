@@ -1,29 +1,46 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+// This file will be used server-side only
 import { HealthGoalId, UserGoalPreference } from '@/lib/types/healthGoals';
 
-let db: Database.Database | null = null;
+let db: any = null;
 
-export function getDatabase(): Database.Database {
-  if (!db) {
-    const dbPath = path.join(process.cwd(), 'data', 'exercise-app.db');
-    db = new Database(dbPath);
-    
-    // Enable WAL mode for better concurrent access
-    db.pragma('journal_mode = WAL');
-    
-    // Initialize tables
-    initializeTables();
+async function initDatabase() {
+  if (db) return db;
+  
+  try {
+    // Only import on server side
+    if (typeof window === 'undefined') {
+      const Database = (await import('better-sqlite3')).default;
+      const path = await import('path');
+      const fs = await import('fs');
+      
+      // Ensure data directory exists
+      const dataDir = path.join(process.cwd(), 'data');
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      
+      const dbPath = path.join(process.cwd(), 'data', 'exercise-app.db');
+      db = new Database(dbPath);
+      
+      // Enable WAL mode for better concurrent access
+      db.pragma('journal_mode = WAL');
+      
+      // Initialize tables
+      initializeTables(db);
+    }
+  } catch (error) {
+    console.error('Database initialization error:', error);
+    throw error;
   }
   
   return db;
 }
 
-function initializeTables() {
-  if (!db) return;
+function initializeTables(database: any) {
+  if (!database) return;
   
   // Create users table
-  db.exec(`
+  database.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
@@ -34,7 +51,7 @@ function initializeTables() {
   `);
   
   // Create user_goals table
-  db.exec(`
+  database.exec(`
     CREATE TABLE IF NOT EXISTS user_goals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
@@ -49,7 +66,7 @@ function initializeTables() {
   `);
   
   // Create indexes for better performance
-  db.exec(`
+  database.exec(`
     CREATE INDEX IF NOT EXISTS idx_user_goals_user_id ON user_goals (user_id);
     CREATE INDEX IF NOT EXISTS idx_user_goals_active ON user_goals (user_id, is_active);
   `);
@@ -59,7 +76,7 @@ export async function saveUserGoalPreference(
   userId: string,
   goalData: { goalId: HealthGoalId; selectedAt: Date; isActive: boolean }
 ): Promise<void> {
-  const database = getDatabase();
+  const database = await initDatabase();
   
   try {
     // Start a transaction
@@ -93,7 +110,7 @@ export async function saveUserGoalPreference(
 }
 
 export async function getUserGoalPreference(userId: string): Promise<UserGoalPreference | null> {
-  const database = getDatabase();
+  const database = await initDatabase();
   
   try {
     const stmt = database.prepare(`
@@ -121,7 +138,7 @@ export async function getUserGoalPreference(userId: string): Promise<UserGoalPre
 }
 
 export async function getUserGoalHistory(userId: string): Promise<UserGoalPreference[]> {
-  const database = getDatabase();
+  const database = await initDatabase();
   
   try {
     const stmt = database.prepare(`
@@ -149,15 +166,5 @@ export function closeDatabase() {
   if (db) {
     db.close();
     db = null;
-  }
-}
-
-// Initialize database directory
-export function ensureDatabaseDirectory() {
-  const fs = require('fs');
-  const dataDir = path.join(process.cwd(), 'data');
-  
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
   }
 }
