@@ -23,15 +23,24 @@ function saveUsers(users: User[]): void {
 
 function saveSession(session: UserSession): void {
   if (typeof window === 'undefined') return;
+  
+  // Helper function to safely convert dates to ISO strings
+  const safeToISOString = (date: Date | string | undefined): string | undefined => {
+    if (!date) return undefined;
+    if (typeof date === 'string') return date;
+    if (date instanceof Date) return date.toISOString();
+    return undefined;
+  };
+  
   localStorage.setItem(SESSION_KEY, JSON.stringify({
     ...session,
-    expiresAt: session.expiresAt.toISOString(),
-    lastActivity: session.lastActivity.toISOString(),
+    expiresAt: safeToISOString(session.expiresAt),
+    lastActivity: safeToISOString(session.lastActivity),
     user: {
       ...session.user,
-      createdAt: session.user.createdAt.toISOString(),
-      updatedAt: session.user.updatedAt.toISOString(),
-      dateOfBirth: session.user.dateOfBirth?.toISOString()
+      createdAt: safeToISOString(session.user.createdAt),
+      updatedAt: safeToISOString(session.user.updatedAt),
+      dateOfBirth: safeToISOString(session.user.dateOfBirth)
     }
   }));
 }
@@ -43,18 +52,33 @@ function getStoredSession(): UserSession | null {
     if (!stored) return null;
     
     const session = JSON.parse(stored);
-    return {
-      ...session,
-      expiresAt: new Date(session.expiresAt),
-      lastActivity: new Date(session.lastActivity),
-      user: {
-        ...session.user,
-        createdAt: new Date(session.user.createdAt),
-        updatedAt: new Date(session.user.updatedAt),
-        dateOfBirth: session.user.dateOfBirth ? new Date(session.user.dateOfBirth) : undefined
+    
+    // Helper function to safely parse dates
+    const safeParseDate = (dateStr: string | undefined, fallback?: Date): Date => {
+      if (!dateStr) return fallback || new Date();
+      try {
+        const parsed = new Date(dateStr);
+        return isNaN(parsed.getTime()) ? (fallback || new Date()) : parsed;
+      } catch {
+        return fallback || new Date();
       }
     };
-  } catch {
+    
+    return {
+      ...session,
+      expiresAt: safeParseDate(session.expiresAt),
+      lastActivity: safeParseDate(session.lastActivity),
+      user: {
+        ...session.user,
+        createdAt: safeParseDate(session.user.createdAt),
+        updatedAt: safeParseDate(session.user.updatedAt),
+        dateOfBirth: session.user.dateOfBirth ? safeParseDate(session.user.dateOfBirth) : undefined
+      }
+    };
+  } catch (error) {
+    console.error('Error parsing stored session:', error);
+    // Clear corrupted session data
+    clearSession();
     return null;
   }
 }

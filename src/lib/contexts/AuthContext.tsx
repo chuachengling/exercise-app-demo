@@ -39,6 +39,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
+        // Clear any corrupted session data
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('exercise_app_session');
+          localStorage.removeItem('exercise_app_current_user');
+        }
       } finally {
         setIsLoading(false);
       }
