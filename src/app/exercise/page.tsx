@@ -5,12 +5,14 @@ import { Plus, Filter, Search, Calendar, TrendingUp } from 'lucide-react';
 import { Exercise, ExerciseType, ExerciseStats } from '@/lib/types/exercise';
 import exerciseService from '@/lib/services/exerciseService';
 import { EXERCISE_TYPES } from '@/lib/data/exerciseTypes';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import ExerciseForm from '@/components/exercise/ExerciseForm';
 import ExerciseHistory from '@/components/exercise/ExerciseHistory';
 import ExerciseStatsDisplay from '@/components/exercise/ExerciseStatsDisplay';
 import Timer from '@/components/exercise/Timer';
 
 export default function ExercisePage() {
+  const { user } = useAuth();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [stats, setStats] = useState<ExerciseStats | null>(null);
   const [selectedType, setSelectedType] = useState<ExerciseType | null>(null);
@@ -20,15 +22,19 @@ export default function ExercisePage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user?.id) {
+      loadData();
+    }
+  }, [user?.id]);
 
   const loadData = async () => {
+    if (!user?.id) return;
+    
     setIsLoading(true);
     try {
       const [exerciseData, statsData] = await Promise.all([
-        exerciseService.getExercises('current-user'),
-        exerciseService.getExerciseStats('current-user')
+        exerciseService.getExercises(user.id),
+        exerciseService.getExerciseStats(user.id)
       ]);
       setExercises(exerciseData);
       setStats(statsData);

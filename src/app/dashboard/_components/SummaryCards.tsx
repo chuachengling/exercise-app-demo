@@ -80,7 +80,7 @@ function MetricCard({
       <div className="space-y-1">
         <div className="flex items-baseline space-x-1">
           <span className="text-2xl font-bold text-gray-900">
-            {value}
+            {typeof value === 'number' ? Number(value.toFixed(2)) : value}
           </span>
           {suffix && (
             <span className="text-sm text-gray-500 font-medium">

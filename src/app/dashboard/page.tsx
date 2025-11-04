@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { TimeRange, DashboardState, HealthDataPoint, SummaryMetrics, ChartDataPoint } from '@/lib/types/dashboard';
-import { getDateRangeForPeriod, getHealthMetrics, getHealthData, transformToChartData } from '@/lib/data/health-metrics';
+import { TimeRange, DashboardState, HealthDataPoint, SummaryMetrics, ChartDataPoint, DateRange } from '@/lib/types/dashboard';
+import { getDateRangeForPeriod, transformToChartData } from '@/lib/data/health-metrics';
 import { useRequireAuth } from '@/lib/contexts/AuthContext';
+import exerciseService from '@/lib/services/exerciseService';
+import { Exercise } from '@/lib/types/exercise';
 import TimeRangeSelector from './_components/TimeRangeSelector';
 import SummaryCards from './_components/SummaryCards';
 import HealthChart from './_components/HealthChart';
@@ -51,19 +53,95 @@ export default function DashboardPage() {
     );
   }
 
+  // Transform exercise data to health data format
+  const transformExercisesToHealthData = (exercises: Exercise[], dateRange: DateRange): HealthDataPoint[] => {
+    const { startDate, endDate } = dateRange;
+    const daysMap = new Map<string, HealthDataPoint>();
+    
+    // Initialize all days with empty data
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dateKey = currentDate.toISOString().split('T')[0];
+      daysMap.set(dateKey, {
+        date: new Date(currentDate),
+        exerciseMinutes: 0,
+        caloriesConsumed: 0,
+        waterIntake: 2.0, // Default water intake
+        weight: undefined
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    // Aggregate exercise data by date
+    exercises.forEach(exercise => {
+      const exerciseDate = new Date(exercise.date);
+      const dateKey = exerciseDate.toISOString().split('T')[0];
+      const dayData = daysMap.get(dateKey);
+      
+      if (dayData) {
+        dayData.exerciseMinutes += exercise.duration || 0;
+        // For calories, use the caloriesBurned field if available
+        dayData.caloriesConsumed += exercise.caloriesBurned || 0;
+      }
+    });
+    
+    return Array.from(daysMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+  };
+
+  // Calculate metrics from exercise data
+  const calculateMetricsFromExercises = (exercises: Exercise[], dateRange: DateRange): SummaryMetrics => {
+    const healthData = transformExercisesToHealthData(exercises, dateRange);
+    
+    const currentMetrics = {
+      totalExerciseSessions: exercises.length,
+      averageDailyWater: Number((healthData.reduce((sum, d) => sum + d.waterIntake, 0) / healthData.length).toFixed(2)),
+      nutritionTrackingStreak: 0, // Would need nutrition data
+      goalCompletionPercentage: Number(Math.min(100, (exercises.length / 7) * 100).toFixed(2)) // Assuming 1 exercise per day goal
+    };
+    
+    // For now, use same data for previous period (could be enhanced to compare actual previous period)
+    const previousMetrics = { ...currentMetrics };
+    
+    const percentageChanges = {
+      totalExerciseSessions: 0,
+      averageDailyWater: 0,
+      nutritionTrackingStreak: 0,
+      goalCompletionPercentage: 0
+    };
+    
+    return {
+      currentPeriod: currentMetrics,
+      previousPeriod: previousMetrics,
+      percentageChanges
+    };
+  };
+
   // Load dashboard data
   const loadDashboardData = async (timeRange: TimeRange) => {
+    if (!user?.id) {
+      console.log('Dashboard: No user ID available, skipping data load');
+      return;
+    }
+    
     setDashboardState(prev => ({ ...prev, isLoading: true }));
     
     try {
       const dateRange = getDateRangeForPeriod(timeRange.value);
       
-      // Load data in parallel
-      const [healthData, summaryMetrics] = await Promise.all([
-        getHealthData(dateRange),
-        getHealthMetrics(dateRange)
-      ]);
+      // Load exercise data
+      const exercises = await exerciseService.getExercises(user.id);
+      console.log('Dashboard: Loaded exercises for user', user.id, ':', exercises.length, exercises);
       
+      // Filter exercises to date range
+      const filteredExercises = exercises.filter(exercise => {
+        const exerciseDate = new Date(exercise.date);
+        return exerciseDate >= dateRange.startDate && exerciseDate <= dateRange.endDate;
+      });
+      console.log('Dashboard: Filtered exercises for date range:', filteredExercises.length, filteredExercises);
+      
+      // Transform data for dashboard
+      const healthData = transformExercisesToHealthData(filteredExercises, dateRange);
+      const summaryMetrics = calculateMetricsFromExercises(filteredExercises, dateRange);
       const chartData = transformToChartData(healthData);
       
       setDashboardState(prev => ({
@@ -97,10 +175,13 @@ export default function DashboardPage() {
     loadDashboardData(dashboardState.selectedTimeRange);
   };
 
-  // Load initial data
+  // Load initial data when user is available
   useEffect(() => {
-    loadDashboardData(DEFAULT_TIME_RANGE);
-  }, []);
+    if (user?.id) {
+      console.log('Dashboard: Loading initial data with user:', user.id);
+      loadDashboardData(DEFAULT_TIME_RANGE);
+    }
+  }, [user?.id]);
 
   // Format date range for display
   const formatDateRange = () => {

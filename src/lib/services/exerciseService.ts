@@ -125,12 +125,13 @@ export async function getExercises(userId: string, filters?: ExerciseFilters): P
 
   let exercises = getStoredExercises().filter(ex => ex.userId === userId);
 
-  // Initialize with mock data if empty
-  if (exercises.length === 0) {
-    const mockExercises = generateMockExercises(userId);
-    saveExercises(mockExercises);
-    exercises = mockExercises;
-  }
+  // Note: Mock data generation disabled - users will start with empty state
+  // This ensures new exercise entries are properly displayed without confusion
+  // if (exercises.length === 0) {
+  //   const mockExercises = generateMockExercises(userId);
+  //   saveExercises(mockExercises);
+  //   exercises = mockExercises;
+  // }
 
   // Apply filters
   if (filters) {
