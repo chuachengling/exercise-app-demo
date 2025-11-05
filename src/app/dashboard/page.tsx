@@ -6,7 +6,9 @@ import { TimeRange, DashboardState, HealthDataPoint, SummaryMetrics, ChartDataPo
 import { getDateRangeForPeriod, transformToChartData } from '@/lib/data/health-metrics';
 import { useRequireAuth } from '@/lib/contexts/AuthContext';
 import exerciseService from '@/lib/services/exerciseService';
+import foodService from '@/lib/services/foodService';
 import { Exercise } from '@/lib/types/exercise';
+import { FoodEntry } from '@/lib/types/food';
 import TimeRangeSelector from './_components/TimeRangeSelector';
 import SummaryCards from './_components/SummaryCards';
 import HealthChart from './_components/HealthChart';
@@ -53,8 +55,8 @@ export default function DashboardPage() {
     );
   }
 
-  // Transform exercise data to health data format
-  const transformExercisesToHealthData = (exercises: Exercise[], dateRange: DateRange): HealthDataPoint[] => {
+  // Transform exercise and food data to health data format
+  const transformToHealthData = (exercises: Exercise[], foodEntries: FoodEntry[], dateRange: DateRange): HealthDataPoint[] => {
     const { startDate, endDate } = dateRange;
     const daysMap = new Map<string, HealthDataPoint>();
     
@@ -80,23 +82,37 @@ export default function DashboardPage() {
       
       if (dayData) {
         dayData.exerciseMinutes += exercise.duration || 0;
-        // For calories, use the caloriesBurned field if available
-        dayData.caloriesConsumed += exercise.caloriesBurned || 0;
+      }
+    });
+    
+    // Aggregate food data by date
+    foodEntries.forEach(entry => {
+      const entryDate = new Date(entry.timestamp);
+      const dateKey = entryDate.toISOString().split('T')[0];
+      const dayData = daysMap.get(dateKey);
+      
+      if (dayData) {
+        dayData.caloriesConsumed += entry.calories || 0;
       }
     });
     
     return Array.from(daysMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
   };
 
-  // Calculate metrics from exercise data
-  const calculateMetricsFromExercises = (exercises: Exercise[], dateRange: DateRange): SummaryMetrics => {
-    const healthData = transformExercisesToHealthData(exercises, dateRange);
+  // Calculate metrics from exercise and food data
+  const calculateMetrics = (exercises: Exercise[], foodEntries: FoodEntry[], dateRange: DateRange): SummaryMetrics => {
+    const healthData = transformToHealthData(exercises, foodEntries, dateRange);
+    
+    // Calculate nutrition streak (consecutive days with food entries)
+    const uniqueFoodDays = new Set(foodEntries.map(entry => 
+      new Date(entry.timestamp).toISOString().split('T')[0]
+    ));
     
     const currentMetrics = {
       totalExerciseSessions: exercises.length,
-      averageDailyWater: Number((healthData.reduce((sum, d) => sum + d.waterIntake, 0) / healthData.length).toFixed(2)),
-      nutritionTrackingStreak: 0, // Would need nutrition data
-      goalCompletionPercentage: Number(Math.min(100, (exercises.length / 7) * 100).toFixed(2)) // Assuming 1 exercise per day goal
+      averageDailyWater: Number((healthData.reduce((sum: number, d: HealthDataPoint) => sum + d.waterIntake, 0) / healthData.length).toFixed(2)),
+      nutritionTrackingStreak: uniqueFoodDays.size,
+      goalCompletionPercentage: Number(Math.min(100, (exercises.length / 7) * 100).toFixed(2)) // Based on exercise frequency
     };
     
     // For now, use same data for previous period (could be enhanced to compare actual previous period)
@@ -128,20 +144,32 @@ export default function DashboardPage() {
     try {
       const dateRange = getDateRangeForPeriod(timeRange.value);
       
-      // Load exercise data
-      const exercises = await exerciseService.getExercises(user.id);
+      // Load exercise and food data in parallel
+      const [exercises, foodEntries] = await Promise.all([
+        exerciseService.getExercises(user.id),
+        foodService.getFoodEntries(user.id)
+      ]);
       console.log('Dashboard: Loaded exercises for user', user.id, ':', exercises.length, exercises);
+      console.log('Dashboard: Loaded food entries for user', user.id, ':', foodEntries.length, foodEntries);
       
       // Filter exercises to date range
       const filteredExercises = exercises.filter(exercise => {
         const exerciseDate = new Date(exercise.date);
         return exerciseDate >= dateRange.startDate && exerciseDate <= dateRange.endDate;
       });
+      
+      // Filter food entries to date range
+      const filteredFoodEntries = foodEntries.filter(entry => {
+        const entryDate = new Date(entry.timestamp);
+        return entryDate >= dateRange.startDate && entryDate <= dateRange.endDate;
+      });
+      
       console.log('Dashboard: Filtered exercises for date range:', filteredExercises.length, filteredExercises);
+      console.log('Dashboard: Filtered food entries for date range:', filteredFoodEntries.length, filteredFoodEntries);
       
       // Transform data for dashboard
-      const healthData = transformExercisesToHealthData(filteredExercises, dateRange);
-      const summaryMetrics = calculateMetricsFromExercises(filteredExercises, dateRange);
+      const healthData = transformToHealthData(filteredExercises, filteredFoodEntries, dateRange);
+      const summaryMetrics = calculateMetrics(filteredExercises, filteredFoodEntries, dateRange);
       const chartData = transformToChartData(healthData);
       
       setDashboardState(prev => ({

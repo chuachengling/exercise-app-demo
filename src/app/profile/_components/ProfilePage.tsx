@@ -23,10 +23,10 @@ import {
 
 interface EditableFieldProps {
   label: string;
-  value: string | number | undefined;
+  value: string | number | Date | undefined;
   type?: 'text' | 'email' | 'date' | 'number' | 'select';
   options?: { value: string; label: string }[];
-  onChange: (value: string | number) => void;
+  onChange: (value: string | number | Date) => void;
   icon?: React.ReactNode;
   suffix?: string;
   placeholder?: string;
@@ -46,12 +46,18 @@ function EditableField({
   const [editValue, setEditValue] = useState(value?.toString() || '');
 
   useEffect(() => {
-    setEditValue(value?.toString() || '');
+    if (value instanceof Date) {
+      setEditValue(value.toISOString().split('T')[0]);
+    } else {
+      setEditValue(value?.toString() || '');
+    }
   }, [value]);
 
   const handleSave = () => {
     if (type === 'number') {
       onChange(parseFloat(editValue) || 0);
+    } else if (type === 'date') {
+      onChange(new Date(editValue));
     } else {
       onChange(editValue);
     }
@@ -59,11 +65,17 @@ function EditableField({
   };
 
   const handleCancel = () => {
-    setEditValue(value?.toString() || '');
+    if (value instanceof Date) {
+      setEditValue(value.toISOString().split('T')[0]);
+    } else {
+      setEditValue(value?.toString() || '');
+    }
     setIsEditing(false);
   };
 
-  const displayValue = value || 'Not set';
+  const displayValue = value instanceof Date 
+    ? value.toLocaleDateString() 
+    : (value || 'Not set');
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow">
@@ -174,7 +186,7 @@ export function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const handleFieldUpdate = async (field: keyof User, value: string | number) => {
+  const handleFieldUpdate = async (field: keyof User, value: string | number | Date) => {
     if (!user) return;
 
     setSaving(true);
@@ -187,6 +199,7 @@ export function ProfilePage() {
         setMessage({ type: 'error', text: response.message || 'Failed to update profile' });
       }
     } catch (error) {
+      console.error('Error updating profile:', error);
       setMessage({ type: 'error', text: 'An unexpected error occurred' });
     } finally {
       setSaving(false);
@@ -198,13 +211,20 @@ export function ProfilePage() {
 
     setSaving(true);
     try {
-      const newPreferences = { ...user.preferences };
+      // Create a deep copy of preferences
+      const newPreferences = JSON.parse(JSON.stringify(user.preferences));
       const keys = path.split('.');
       let current: any = newPreferences;
       
+      // Navigate to the nested property
       for (let i = 0; i < keys.length - 1; i++) {
+        if (!current[keys[i]]) {
+          current[keys[i]] = {};
+        }
         current = current[keys[i]];
       }
+      
+      // Set the value
       current[keys[keys.length - 1]] = value;
 
       const response = await updateProfile({ preferences: newPreferences });
@@ -215,6 +235,7 @@ export function ProfilePage() {
         setMessage({ type: 'error', text: response.message || 'Failed to update preferences' });
       }
     } catch (error) {
+      console.error('Error updating preferences:', error);
       setMessage({ type: 'error', text: 'An unexpected error occurred' });
     } finally {
       setSaving(false);
@@ -281,7 +302,7 @@ export function ProfilePage() {
               </div>
             </div>
             <div className="text-sm text-gray-500">
-              Member since {user.createdAt.toLocaleDateString()}
+              Member since {user.createdAt instanceof Date ? user.createdAt.toLocaleDateString() : new Date(user.createdAt).toLocaleDateString()}
             </div>
           </div>
         </div>
@@ -339,7 +360,7 @@ export function ProfilePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <EditableField
                     label="Date of Birth"
-                    value={user.dateOfBirth?.toISOString().split('T')[0]}
+                    value={user.dateOfBirth ? (user.dateOfBirth instanceof Date ? user.dateOfBirth : new Date(user.dateOfBirth)) : undefined}
                     type="date"
                     onChange={(value) => handleFieldUpdate('dateOfBirth', new Date(value as string))}
                     icon={<Calendar className="w-5 h-5" />}

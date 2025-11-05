@@ -1,7 +1,10 @@
 {
-  "/page": "app/page.js",
-  "/auth/login/page": "app/auth/login/page.js",
-  "/auth/signup/page": "app/auth/signup/page.js",
+  "/food/page": "app/food/page.js",
   "/dashboard/page": "app/dashboard/page.js",
-  "/exercise/page": "app/exercise/page.js"
+  "/exercise/page": "app/exercise/page.js",
+  "/signup/goals/page": "app/signup/goals/page.js",
+  "/api/user/goals/route": "app/api/user/goals/route.js",
+  "/signup/profile-setup/page": "app/signup/profile-setup/page.js",
+  "/page": "app/page.js",
+  "/profile/page": "app/profile/page.js"
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { Home, Target, BarChart3, User, LogIn, LogOut, UserPlus, Dumbbell } from 'lucide-react';
+import { Home, Target, BarChart3, User, LogIn, LogOut, UserPlus, Dumbbell, UtensilsCrossed } from 'lucide-react';
 
 export function Navigation() {
   const pathname = usePathname();
@@ -18,6 +18,7 @@ export function Navigation() {
     { href: '/signup/goals', label: 'Goals', icon: Target },
     { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
     { href: '/exercise', label: 'Exercise', icon: Dumbbell },
+    { href: '/food', label: 'Food', icon: UtensilsCrossed },
     { href: '/profile', label: 'Profile', icon: User }
   ];
 
