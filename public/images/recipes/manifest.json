@@ -1,0 +1,83 @@
+{
+  "generatedAt": "2025-11-06T16:43:02.290Z",
+  "model": "stabilityai/stable-diffusion-xl-base-1.0",
+  "totalImages": 12,
+  "successful": 12,
+  "failed": 0,
+  "skipped": 0,
+  "duration": 418,
+  "results": [
+    {
+      "id": "cached-1",
+      "title": "Overnight Oats with Berries",
+      "status": "success",
+      "filename": "cached-1.png"
+    },
+    {
+      "id": "cached-2",
+      "title": "Grilled Chicken & Quinoa Bowl",
+      "status": "success",
+      "filename": "cached-2.png"
+    },
+    {
+      "id": "cached-3",
+      "title": "Mediterranean Salmon with Roasted Vegetables",
+      "status": "success",
+      "filename": "cached-3.png"
+    },
+    {
+      "id": "cached-4",
+      "title": "Protein-Packed Energy Balls",
+      "status": "success",
+      "filename": "cached-4.png"
+    },
+    {
+      "id": "cached-5",
+      "title": "Green Smoothie Bowl",
+      "status": "success",
+      "filename": "cached-5.png"
+    },
+    {
+      "id": "cached-6",
+      "title": "Turkey & Avocado Wrap",
+      "status": "success",
+      "filename": "cached-6.png"
+    },
+    {
+      "id": "cached-7",
+      "title": "Avocado Toast with Poached Eggs",
+      "status": "success",
+      "filename": "cached-7.png"
+    },
+    {
+      "id": "cached-8",
+      "title": "Baked Cod with Roasted Vegetables",
+      "status": "success",
+      "filename": "cached-8.png"
+    },
+    {
+      "id": "cached-9",
+      "title": "Greek Yogurt Parfait",
+      "status": "success",
+      "filename": "cached-9.png"
+    },
+    {
+      "id": "cached-10",
+      "title": "Stir-Fried Tofu with Vegetables",
+      "status": "success",
+      "filename": "cached-10.png"
+    },
+    {
+      "id": "cached-11",
+      "title": "Banana Protein Pancakes",
+      "status": "success",
+      "filename": "cached-11.png"
+    },
+    {
+      "id": "cached-12",
+      "title": "Chicken Caesar Salad",
+      "status": "success",
+      "filename": "cached-12.png"
+    }
+  ]
+}

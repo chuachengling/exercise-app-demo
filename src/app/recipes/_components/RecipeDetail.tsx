@@ -77,6 +77,7 @@ export function RecipeDetail({ recipe, isOpen, onClose, onToggleFavorite }: Reci
               fill
               className="object-cover"
               priority
+              unoptimized={recipe.image.startsWith('/images/')}
             />
             
             {/* Favorite Button Overlay */}

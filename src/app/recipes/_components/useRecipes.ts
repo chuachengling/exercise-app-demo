@@ -30,6 +30,7 @@ interface UseRecipesReturn extends RecipesState {
   selectRecipe: (recipe: Recipe) => void;
   closeRecipe: () => void;
   generateNewRecipes: () => Promise<void>;
+  generateCustomRecipe: (description: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -48,12 +49,14 @@ export function useRecipes(userId: string, healthGoals: HealthGoalId[]): UseReci
     streamingChunks: [],
   });
 
-  // Check online status
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator !== 'undefined' ? navigator.onLine : true
-  );
+  // Check online status - start with true to avoid hydration mismatch
+  const [isOnline, setIsOnline] = useState(true);
 
+  // Set actual online status after hydration
   useEffect(() => {
+    // Set initial online status after mount
+    setIsOnline(navigator.onLine);
+
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
@@ -75,33 +78,31 @@ export function useRecipes(userId: string, healthGoals: HealthGoalId[]): UseReci
 
   const loadInitialRecipes = async () => {
     try {
-      // Detect available AI provider
+      // Detect available AI provider in background
       if (isOnline) {
-        console.log('Detecting AI provider...');
-        const provider = await aiService.detectAndSetProvider();
-        console.log('Provider detected:', provider || 'none');
+        aiService.detectAndSetProvider().then(provider => {
+          console.log('AI Provider detected:', provider || 'none');
+        }).catch(err => {
+          console.warn('Provider detection failed:', err);
+        });
       }
 
-      // Check if we have cached recipes
-      const cached = recipeService.getCachedRecipes();
+      // Always load fallback recipes immediately for fast page load
+      console.log('Loading recipe database:', fallbackRecipes.length, 'recipes');
       
-      if (cached.length > 0) {
-        // Load cached recipes immediately
-        console.log('Loading cached recipes:', cached.length);
-        setState(prev => ({
-          ...prev,
-          recipes: cached,
-          isLoading: false,
-        }));
-      } else if (isOnline) {
-        // Try to generate new recipes if online
-        console.log('No cache found, generating new recipes...');
-        await generateNewRecipes();
-      } else {
-        // Use fallback recipes
-        console.log('Offline mode, loading fallback recipes');
-        loadFallbackRecipes();
-      }
+      // Check if we have user-generated custom recipes in cache
+      const cachedCustomRecipes = recipeService.getCachedRecipes().filter(r => r.isAiGenerated);
+      
+      // Combine fallback recipes with any custom generated ones
+      const allRecipes = [...fallbackRecipes, ...cachedCustomRecipes];
+      
+      setState(prev => ({
+        ...prev,
+        recipes: allRecipes,
+        isLoading: false,
+      }));
+      
+      console.log('Loaded', allRecipes.length, 'total recipes (', cachedCustomRecipes.length, 'custom)');
     } catch (error) {
       console.error('Failed to load recipes:', error);
       loadFallbackRecipes();
@@ -163,6 +164,76 @@ export function useRecipes(userId: string, healthGoals: HealthGoalId[]): UseReci
       loadFallbackRecipes();
     }
   }, [healthGoals, userId, isOnline]);
+
+  const generateCustomRecipe = useCallback(async (description: string) => {
+    console.log('🚀 Starting custom recipe generation...');
+    console.log('📝 Description:', description);
+    console.log('👤 User ID:', userId);
+    console.log('🎯 Health Goals:', healthGoals);
+    
+    setState(prev => ({ ...prev, isGenerating: true, error: null, generationProgress: '', streamingChunks: [] }));
+
+    try {
+      // Progress callback for Ollama streaming
+      const onProgress = (chunk: string) => {
+        console.log('📊 Progress chunk received');
+        setState(prev => ({
+          ...prev,
+          generationProgress: prev.generationProgress + chunk,
+          streamingChunks: [...prev.streamingChunks, chunk],
+        }));
+      };
+
+      console.log('📡 Calling aiService.generateRecipes...');
+      
+      // Generate a single custom recipe based on user description
+      const response = await aiService.generateRecipes(
+        { 
+          healthGoals, 
+          count: 1,
+          customPrompt: description // Pass the custom description
+        },
+        userId,
+        onProgress
+      );
+
+      console.log('📥 Response received:', response);
+
+      if (response.success && response.recipes && response.recipes.length > 0) {
+        const newRecipe = response.recipes[0];
+        
+        console.log('✅ Recipe generated successfully:', newRecipe.title);
+        console.log('🖼️  Image URL:', newRecipe.image);
+        
+        // Save to cache
+        recipeService.saveRecipe(newRecipe);
+        
+        // Add to current recipes list
+        setState(prev => ({
+          ...prev,
+          recipes: [newRecipe, ...prev.recipes], // Add at the beginning
+          isGenerating: false,
+          generationProgress: '',
+          streamingChunks: [],
+        }));
+        
+        console.log('✅ Custom recipe added to list');
+      } else {
+        console.error('❌ Response not successful or no recipes:', response);
+        throw new Error(response.error || 'Failed to generate custom recipe');
+      }
+    } catch (error) {
+      console.error('❌ Custom recipe generation failed:', error);
+      console.error('Error details:', error instanceof Error ? error.message : String(error));
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to generate custom recipe. Please try again.',
+        isGenerating: false,
+        generationProgress: '',
+        streamingChunks: [],
+      }));
+    }
+  }, [healthGoals, userId]);
 
   const refreshRecipes = useCallback(async () => {
     if (!isOnline) {
@@ -249,6 +320,7 @@ export function useRecipes(userId: string, healthGoals: HealthGoalId[]): UseReci
     selectRecipe,
     closeRecipe,
     generateNewRecipes,
+    generateCustomRecipe,
     clearError,
   };
 }

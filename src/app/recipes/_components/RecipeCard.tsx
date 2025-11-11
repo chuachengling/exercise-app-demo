@@ -50,6 +50,7 @@ export function RecipeCard({ recipe, onClick, onToggleFavorite, className = '' }
           fill
           className="object-cover transition-transform duration-200 group-hover:scale-105"
           sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          unoptimized={recipe.image.startsWith('/images/')}
         />
         
         {/* AI Generated Badge */}

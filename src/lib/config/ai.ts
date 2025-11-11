@@ -11,7 +11,7 @@ export const AI_CONFIG = {
   
   // Ollama Local Configuration
   ollama: {
-    baseUrl: 'http://localhost:11434',
+    baseUrl: '/api/ollama', // Use Next.js API route as proxy
     model: 'gemma3:1b', // Using gemma3:1b as specified
     temperature: 0.7,
   },

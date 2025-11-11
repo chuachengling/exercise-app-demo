@@ -6,6 +6,7 @@ import { RecipeGrid } from './_components/RecipeGrid';
 import { RecipeFilters } from './_components/RecipeFilters';
 import { RecipeDetail } from './_components/RecipeDetail';
 import { RecipeSkeletonGrid } from './_components/RecipeSkeleton';
+import { CreateRecipeCard } from './_components/CreateRecipeCard';
 
 // Mock user data - in production this would come from auth context
 const MOCK_USER = {
@@ -31,6 +32,7 @@ export default function RecipesPage() {
     setFilter,
     selectRecipe,
     closeRecipe,
+    generateCustomRecipe,
     clearError,
   } = useRecipes(MOCK_USER.id, MOCK_USER.healthGoals);
 
@@ -133,6 +135,8 @@ export default function RecipesPage() {
             recipes={filteredRecipes}
             onRecipeClick={selectRecipe}
             onToggleFavorite={toggleFavorite}
+            onGenerateCustomRecipe={generateCustomRecipe}
+            isGenerating={isGenerating}
           />
         )}
 

@@ -57,6 +57,7 @@ export interface GenerateRecipesRequest {
   count?: number;
   mealType?: MealType;
   excludeIngredients?: string[];
+  customPrompt?: string; // Custom recipe description from user
 }
 
 export interface AIServiceResponse {

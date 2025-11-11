@@ -2,18 +2,28 @@
 
 import { Recipe } from '@/lib/types/recipe';
 import { RecipeCard } from './RecipeCard';
+import { CreateRecipeCard } from './CreateRecipeCard';
 import { ChefHat } from 'lucide-react';
 
 interface RecipeGridProps {
   recipes: Recipe[];
   onRecipeClick: (recipe: Recipe) => void;
   onToggleFavorite: (recipeId: string) => void;
+  onGenerateCustomRecipe?: (description: string) => Promise<void>;
+  isGenerating?: boolean;
   className?: string;
 }
 
-export function RecipeGrid({ recipes, onRecipeClick, onToggleFavorite, className = '' }: RecipeGridProps) {
+export function RecipeGrid({ 
+  recipes, 
+  onRecipeClick, 
+  onToggleFavorite, 
+  onGenerateCustomRecipe,
+  isGenerating = false,
+  className = '' 
+}: RecipeGridProps) {
   // Empty state
-  if (recipes.length === 0) {
+  if (recipes.length === 0 && !onGenerateCustomRecipe) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4">
         <div className="w-24 h-24 bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20 rounded-full flex items-center justify-center mb-6">
@@ -35,6 +45,17 @@ export function RecipeGrid({ recipes, onRecipeClick, onToggleFavorite, className
       role="list"
       aria-label="Recipe list"
     >
+      {/* Create Recipe Card - Always first if onGenerateCustomRecipe provided */}
+      {onGenerateCustomRecipe && (
+        <div role="listitem">
+          <CreateRecipeCard 
+            onGenerateRecipe={onGenerateCustomRecipe}
+            isGenerating={isGenerating}
+          />
+        </div>
+      )}
+      
+      {/* Recipe Cards */}
       {recipes.map((recipe) => (
         <div key={recipe.id} role="listitem">
           <RecipeCard

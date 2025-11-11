@@ -1,6 +1,7 @@
 import { AI_CONFIG } from '../config/ai';
 import { Recipe, GenerateRecipesRequest, AIServiceResponse, MealType } from '../types/recipe';
 import { HealthGoalId } from '../types/healthGoals';
+import { getRecipeImage, getMealTypeColor } from './imageService';
 
 interface OllamaStreamResponse {
   model: string;
@@ -10,9 +11,13 @@ interface OllamaStreamResponse {
 }
 
 /**
- * Generate recipe prompt based on user's health goals
+ * Generate recipe prompt based on user's health goals or custom description
  */
-function generateRecipePrompt(healthGoals: HealthGoalId[], count: number = 6): string {
+function generateRecipePrompt(
+  healthGoals: HealthGoalId[], 
+  count: number = 6,
+  customPrompt?: string
+): string {
   const goalDescriptions = healthGoals.map(goal => {
     switch (goal) {
       case 'weight_loss':
@@ -28,12 +33,17 @@ function generateRecipePrompt(healthGoals: HealthGoalId[], count: number = 6): s
     }
   }).join(', ');
 
-  return `You are a professional nutritionist and chef. Generate ${count} unique, healthy recipes for someone with these health goals: ${goalDescriptions}.
+  // If custom prompt provided, use it for specific recipe generation
+  const baseDescription = customPrompt 
+    ? `Create a recipe based on this description: "${customPrompt}". Also consider the user's health goals: ${goalDescriptions}.`
+    : `Generate ${count} unique, healthy recipes for someone with these health goals: ${goalDescriptions}.`;
+
+  return `You are a professional nutritionist and chef. ${baseDescription}
 
 CRITICAL: You must respond with ONLY a valid JSON object. No markdown, no explanation, no code blocks. Just pure JSON.
 
 Requirements:
-1. Diverse meal types: Mix of BREAKFAST, LUNCH, DINNER, and SNACK
+1. ${customPrompt ? 'Follow the user\'s description closely' : 'Diverse meal types: Mix of BREAKFAST, LUNCH, DINNER, and SNACK'}
 2. Difficulty levels: Include Easy, Medium, and Hard recipes
 3. Realistic times: Prep time 5-30 minutes, Cook time 0-60 minutes
 4. Common ingredients: Use accessible, everyday ingredients
@@ -71,7 +81,7 @@ JSON Format (respond with ONLY this structure):
   ]
 }
 
-Generate ${count} recipes now in this exact JSON format. Remember: ONLY JSON, no other text.`;
+Generate ${count} recipe${count > 1 ? 's' : ''} now in this exact JSON format. Remember: ONLY JSON, no other text.`;
 }
 
 /**
@@ -81,68 +91,94 @@ async function generateRecipesWithOllama(
   prompt: string,
   onProgress?: (chunk: string) => void
 ): Promise<string> {
-  const response = await fetch(`${AI_CONFIG.ollama.baseUrl}/api/generate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: AI_CONFIG.ollama.model,
-      prompt: prompt,
-      temperature: AI_CONFIG.ollama.temperature,
-      stream: true, // Enable streaming
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Ollama API error: ${response.statusText}`);
-  }
-
-  const reader = response.body?.getReader();
-  const decoder = new TextDecoder();
-  let fullResponse = '';
-
-  if (!reader) {
-    throw new Error('No response body');
-  }
-
+  // Use the API route (baseUrl is now '/api/ollama')
+  const apiUrl = AI_CONFIG.ollama.baseUrl.startsWith('/') 
+    ? AI_CONFIG.ollama.baseUrl 
+    : `${AI_CONFIG.ollama.baseUrl}/api/generate`;
+    
+  console.log('📡 Calling Ollama via:', apiUrl);
+  
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) break;
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: AI_CONFIG.ollama.model,
+        prompt: prompt,
+        temperature: AI_CONFIG.ollama.temperature,
+        stream: true, // Enable streaming
+      }),
+    });
 
-      // Decode the chunk
-      const chunk = decoder.decode(value, { stream: true });
-      
-      // Split by newlines as each line is a separate JSON object
-      const lines = chunk.split('\n').filter(line => line.trim());
-      
-      for (const line of lines) {
-        try {
-          const parsed: OllamaStreamResponse = JSON.parse(line);
-          
-          // Accumulate the response
-          fullResponse += parsed.response;
-          
-          // Call progress callback if provided
-          if (onProgress) {
-            onProgress(parsed.response);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Ollama API error response:', errorText);
+      throw new Error(`Ollama API error: ${response.statusText} - ${errorText}`);
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let fullResponse = '';
+
+    if (!reader) {
+      throw new Error('No response body from stream');
+    }
+
+    console.log('📥 Reading stream...');
+
+    try {
+      let chunkCount = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          console.log(`✅ Stream done. Total chunks: ${chunkCount}, Response length: ${fullResponse.length}`);
+          break;
+        }
+
+        // Decode the chunk
+        const chunk = decoder.decode(value, { stream: true });
+        
+        // Split by newlines as each line is a separate JSON object
+        const lines = chunk.split('\n').filter(line => line.trim());
+        
+        for (const line of lines) {
+          try {
+            const parsed: OllamaStreamResponse = JSON.parse(line);
+            
+            // Accumulate the response
+            fullResponse += parsed.response;
+            chunkCount++;
+            
+            // Call progress callback if provided
+            if (onProgress) {
+              onProgress(parsed.response);
+            }
+            
+            // Check if generation is complete
+            if (parsed.done) {
+              console.log(`✅ Generation complete. Final length: ${fullResponse.length}`);
+              return fullResponse;
+            }
+          } catch (parseError) {
+            console.warn('⚠️ Failed to parse chunk line (non-fatal):', line.substring(0, 50));
           }
-          
-          // Check if generation is complete
-          if (parsed.done) {
-            return fullResponse;
-          }
-        } catch (parseError) {
-          console.warn('Failed to parse chunk:', line, parseError);
         }
       }
+      
+      if (!fullResponse) {
+        throw new Error('Empty response from Ollama');
+      }
+      
+      return fullResponse;
+    } finally {
+      reader.releaseLock();
     }
-    
-    return fullResponse;
-  } finally {
-    reader.releaseLock();
+  } catch (error) {
+    console.error('❌ generateRecipesWithOllama error:', error);
+    throw error;
   }
 }
 
@@ -179,45 +215,115 @@ async function generateRecipesWithOpenAI(prompt: string): Promise<string> {
  * Extract and parse JSON from AI response with multiple fallback strategies
  */
 function extractAndParseJSON(responseText: string): any {
-  // Strategy 1: Try to find JSON between curly braces
-  let jsonMatch = responseText.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    try {
-      return JSON.parse(jsonMatch[0]);
-    } catch (e) {
-      console.warn('Failed to parse matched JSON:', e);
-    }
-  }
-
-  // Strategy 2: Remove markdown code blocks if present
-  const cleanedText = responseText
+  console.log('🔍 Attempting to extract JSON from response (length:', responseText.length, ')');
+  console.log('📄 First 300 chars:', responseText.substring(0, 300));
+  console.log('📄 Last 200 chars:', responseText.substring(responseText.length - 200));
+  
+  // Strategy 1: Remove markdown code blocks first
+  let cleanedText = responseText
     .replace(/```json\s*/g, '')
     .replace(/```\s*/g, '')
     .trim();
-  
-  try {
-    return JSON.parse(cleanedText);
-  } catch (e) {
-    console.warn('Failed to parse cleaned text:', e);
-  }
 
-  // Strategy 3: Try to find the start of JSON object
-  const jsonStart = responseText.indexOf('{');
-  const jsonEnd = responseText.lastIndexOf('}');
+  // Strategy 2: Try to find complete JSON object with proper nesting
+  const jsonStart = cleanedText.indexOf('{');
   
-  if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-    try {
-      return JSON.parse(responseText.substring(jsonStart, jsonEnd + 1));
-    } catch (e) {
-      console.warn('Failed to parse substring:', e);
+  if (jsonStart !== -1) {
+    // Find matching closing brace by counting braces
+    let braceCount = 0;
+    let jsonEnd = -1;
+    
+    for (let i = jsonStart; i < cleanedText.length; i++) {
+      if (cleanedText[i] === '{') braceCount++;
+      if (cleanedText[i] === '}') braceCount--;
+      
+      if (braceCount === 0) {
+        jsonEnd = i;
+        break;
+      }
+    }
+    
+    if (jsonEnd !== -1) {
+      const jsonStr = cleanedText.substring(jsonStart, jsonEnd + 1);
+      console.log('✂️ Extracted JSON (length:', jsonStr.length, ')');
+      
+      try {
+        const parsed = JSON.parse(jsonStr);
+        console.log('✅ Successfully parsed JSON');
+        return parsed;
+      } catch (e) {
+        console.warn('❌ Failed to parse extracted JSON:', e);
+        console.log('📋 Problematic JSON:', jsonStr.substring(0, 500));
+      }
     }
   }
 
+  // Strategy 3: Try parsing cleaned text directly
+  try {
+    const parsed = JSON.parse(cleanedText);
+    console.log('✅ Successfully parsed cleaned text');
+    return parsed;
+  } catch (e) {
+    console.warn('❌ Failed to parse cleaned text:', e);
+  }
+
+  // Strategy 4: Try simple regex match as last resort
+  const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      console.log('✅ Successfully parsed with regex');
+      return parsed;
+    } catch (e) {
+      console.warn('❌ Failed to parse regex match:', e);
+    }
+  }
+
+  console.error('❌ All JSON extraction strategies failed');
   throw new Error('Could not extract valid JSON from response');
 }
 
 /**
  * Validate and sanitize recipe data
+ */
+/**
+ * Sanitize and fix recipe data from AI
+ */
+function sanitizeRecipe(recipe: any): any {
+  // Fix ingredient amounts if they're strings
+  if (Array.isArray(recipe.ingredients)) {
+    recipe.ingredients = recipe.ingredients.map((ing: any) => {
+      let amount = ing.amount;
+      
+      // If amount is a string, try to parse it
+      if (typeof amount === 'string') {
+        // Handle fractions like "1/2"
+        if (amount.includes('/')) {
+          const parts = amount.split('/');
+          amount = parseFloat(parts[0]) / parseFloat(parts[1]);
+        }
+        // Handle ranges like "1/2 - 1 cup" - take first number
+        else if (amount.includes('-')) {
+          amount = parseFloat(amount.split('-')[0]);
+        }
+        // Just parse the number
+        else {
+          amount = parseFloat(amount) || 1;
+        }
+      }
+      
+      return {
+        ...ing,
+        amount: typeof amount === 'number' ? amount : 1,
+      };
+    });
+  }
+  
+  return recipe;
+}
+
+/**
+ * Validate recipe structure
  */
 function validateRecipe(recipe: any): boolean {
   return (
@@ -250,26 +356,45 @@ export const aiService = {
     userId: string,
     onProgress?: (chunk: string) => void
   ): Promise<AIServiceResponse> {
+    console.log('🔧 aiService.generateRecipes called');
+    console.log('📋 Request:', { 
+      count: request.count, 
+      hasCustomPrompt: !!request.customPrompt,
+      customPrompt: request.customPrompt,
+      healthGoals: request.healthGoals 
+    });
+    
     const maxRetries = 2;
     let lastError: Error | null = null;
 
     // Try up to maxRetries times
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`Recipe generation attempt ${attempt}/${maxRetries}`);
+        console.log(`🔄 Recipe generation attempt ${attempt}/${maxRetries}`);
         
-        const prompt = generateRecipePrompt(request.healthGoals, request.count);
+        const prompt = generateRecipePrompt(
+          request.healthGoals, 
+          request.count, 
+          request.customPrompt
+        );
+        
+        console.log('📝 Generated prompt (first 200 chars):', prompt.substring(0, 200));
+        
         let responseText: string;
 
         // Choose provider based on configuration
+        console.log(`🤖 Using provider: ${AI_CONFIG.provider}`);
+        
         if (AI_CONFIG.provider === 'ollama') {
+          console.log('📡 Calling Ollama API...');
           responseText = await generateRecipesWithOllama(prompt, onProgress);
         } else {
+          console.log('📡 Calling OpenAI API...');
           responseText = await generateRecipesWithOpenAI(prompt);
         }
 
         // Log response length for debugging
-        console.log(`Received response: ${responseText.length} characters`);
+        console.log(`✅ Received response: ${responseText.length} characters`);
 
         // Extract and parse JSON with fallback strategies
         const parsed = extractAndParseJSON(responseText);
@@ -278,31 +403,41 @@ export const aiService = {
           throw new Error('Invalid recipe format: missing recipes array');
         }
 
-        // Validate and filter recipes
-        const validRecipes = parsed.recipes.filter((r: any) => {
-          const isValid = validateRecipe(r);
-          if (!isValid) {
-            console.warn('Invalid recipe filtered out:', r.title || 'Unknown');
-          }
-          return isValid;
-        });
+        // Sanitize and validate recipes
+        const validRecipes = parsed.recipes
+          .map((r: any) => sanitizeRecipe(r)) // Sanitize first
+          .filter((r: any) => {
+            const isValid = validateRecipe(r);
+            if (!isValid) {
+              console.warn('Invalid recipe filtered out:', r.title || 'Unknown');
+              console.warn('Recipe data:', JSON.stringify(r, null, 2));
+            }
+            return isValid;
+          });
 
         if (validRecipes.length === 0) {
           throw new Error('No valid recipes generated');
         }
 
-        // Transform to Recipe type with defaults
-        const recipes: Recipe[] = validRecipes.map((r: any) => ({
-          ...r,
-          id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          userId,
-          isAiGenerated: true,
-          generatedAt: new Date(),
-          isFavorite: false,
-          tags: Array.isArray(r.tags) ? r.tags : [],
-          healthGoals: request.healthGoals,
-          image: r.image || `https://via.placeholder.com/400x300/10b981/ffffff?text=${encodeURIComponent(r.title)}`,
-        }));
+        // Transform to Recipe type with defaults and generate images
+        const recipes: Recipe[] = validRecipes.map((r: any, index: number) => {
+          // Use color-coded placeholders for fast, reliable recipe generation
+          // AI-generated images are pre-cached for the main recipe database
+          const fallbackColor = getMealTypeColor(r.mealType || 'LUNCH');
+          const imageUrl = `https://via.placeholder.com/400x300/${fallbackColor}/ffffff?text=${encodeURIComponent(r.title)}`;
+          
+          return {
+            ...r,
+            id: `ai-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+            userId,
+            isAiGenerated: true,
+            generatedAt: new Date(),
+            isFavorite: false,
+            tags: Array.isArray(r.tags) ? r.tags : [],
+            healthGoals: request.healthGoals,
+            image: imageUrl,
+          };
+        });
 
         console.log(`✅ Successfully generated ${recipes.length} recipes on attempt ${attempt}`);
 
@@ -313,7 +448,8 @@ export const aiService = {
         };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Unknown error');
-        console.error(`❌ Attempt ${attempt}/${maxRetries} failed:`, lastError.message);
+        console.error(`❌ Attempt ${attempt}/${maxRetries} failed:`, lastError);
+        console.error('Error stack:', lastError instanceof Error ? lastError.stack : 'N/A');
         
         // If this isn't the last attempt, wait a bit before retrying
         if (attempt < maxRetries) {
@@ -324,7 +460,7 @@ export const aiService = {
     }
 
     // All retries failed
-    console.error('All recipe generation attempts failed');
+    console.error('All recipe generation attempts failed. Last error:', lastError);
     return {
       success: false,
       error: lastError?.message || 'Failed to generate recipes after multiple attempts',
@@ -337,17 +473,29 @@ export const aiService = {
   async checkOllamaAvailability(): Promise<boolean> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
-      const response = await fetch(`${AI_CONFIG.ollama.baseUrl}/api/tags`, {
+      // Use the API route for checking availability
+      const apiUrl = AI_CONFIG.ollama.baseUrl.startsWith('/') 
+        ? AI_CONFIG.ollama.baseUrl 
+        : `${AI_CONFIG.ollama.baseUrl}/api/tags`;
+
+      const response = await fetch(apiUrl, {
         method: 'GET',
         signal: controller.signal,
       });
       
       clearTimeout(timeoutId);
-      return response.ok;
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Ollama available:', data);
+        return true;
+      }
+      
+      return false;
     } catch (error) {
-      console.warn('Ollama not available:', error instanceof Error ? error.message : 'Unknown error');
+      console.warn('⚠️ Ollama not available:', error instanceof Error ? error.message : 'Unknown error');
       return false;
     }
   },
